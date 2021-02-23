@@ -1,0 +1,51 @@
+image: keymetrics/pm2:latest
+
+stages:
+  - dev-deploy
+  - prod-deploy
+
+deploy_dev:
+  stage: dev-deploy
+  script:
+    - echo "====== Deploy to production server ======"
+    - apk update && apk upgrade
+    - apk add git openssh bash
+    # Add target server's secret key
+    - mkdir ~/.ssh
+    - echo $DEV_SERVER_SECRET_KEY_BASE64 | base64 -d > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh && chmod 600 ~/.ssh/*
+    - echo "Test ssh connection"
+    - echo "$DEV_SERVER_USER@$DEV_SERVER_HOST"
+    - ssh -o StrictHostKeyChecking=no -T "$DEV_SERVER_USER@$DEV_SERVER_HOST"
+    # Deploy front & api
+    - echo "Setup target server directories for front"
+    - pm2 deploy ecosystem.config.js dev setup 2>&1 || true
+    - echo "make deploy"
+    - DEBUG=* pm2 deploy ecosystem.config.js dev 2>&1
+  environment:
+    name: dev-deploy-env
+  only:
+    - dev-deployed
+
+deploy_prod:
+  stage: prod-deploy
+  script:
+    - echo "====== Deploy to production server ======"
+    - apk update && apk upgrade
+    - apk add git openssh bash
+    # Add target server's secret key
+    - mkdir ~/.ssh
+    - echo $PROD_SERVER_SECRET_KEY_BASE64 | base64 -d > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh && chmod 600 ~/.ssh/*
+    - echo "Test ssh connection"
+    - echo "$PROD_SERVER_USER@$PROD_SERVER_HOST"
+    - ssh -o StrictHostKeyChecking=no -T "$PROD_SERVER_USER@$PROD_SERVER_HOST"
+    # Deploy front & api
+    - echo "Setup target server directories for front"
+    - pm2 deploy ecosystem.config.js $PROD_PM2_DEPLOY_ENV setup 2>&1 || true
+    - echo "make deploy"
+    - pm2 deploy ecosystem.config.js $PROD_PM2_DEPLOY_ENV
+  environment:
+    name: production-deploy-env
+  only:
+    - production
